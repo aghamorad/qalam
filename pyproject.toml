@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qalam"
+description = "Convert Persian PDFs into right-to-left EPUBs a Kindle reads as-is"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Morad" }]
+keywords = ["persian", "farsi", "epub", "pdf", "rtl", "kindle"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Persian",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: XML",
+]
+dynamic = ["version"]
+dependencies = [
+    "PySide6>=6.6",
+    "fonttools>=4.44",
+    "pyobjc-framework-Quartz>=10.0",
+]
+
+[project.scripts]
+qalam = "persian_ebook.cli:main"
+
+[project.gui-scripts]
+qalam-gui = "persian_ebook.gui:main"
+
+[project.urls]
+Homepage = "https://github.com/aghamorad/qalam"
+Source = "https://github.com/aghamorad/qalam"
+
+[tool.setuptools.dynamic]
+version = { attr = "persian_ebook.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["persian_ebook*"]
+
+[tool.setuptools.package-data]
+persian_ebook = [
+    "data/*.png",
+    "data/*.icns",
+    "data/fonts/*.ttf",
+    "data/fonts/*.txt",
+]

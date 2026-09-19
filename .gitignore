@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Scratch output from a conversion run.
+out/
+
+.DS_Store
+.idea/
+.vscode/
