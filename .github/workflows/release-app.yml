@@ -1,0 +1,73 @@
+name: Build Qalam.app and attach to release
+
+# The endpoint is a macOS-only app, so the bundle has to be built on a Mac.
+# It is built here rather than on a developer machine for two reasons: the
+# upload of a 40 MB asset from a throttled connection is the thing that
+# produced a half-finished draft release before, and a bundle is only
+# trustworthy if it came out of a clean checkout.
+#
+# Builds Apple Silicon only. An Intel build needs a universal2 interpreter and
+# universal2 wheels for PySide6 and PyObjC; that is a separate job if it is
+# ever wanted.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to attach the app to
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pyinstaller
+
+      - name: Build Qalam.app
+        run: python -m PyInstaller Qalam.spec --noconfirm
+
+      - name: Check the bundle before shipping it
+        run: |
+          set -euo pipefail
+          test -d dist/Qalam.app || { echo "no bundle was produced"; exit 1; }
+          # A bundle that lost its Python would still be a directory named
+          # Qalam.app, so check for the pieces the app cannot start without.
+          test -x dist/Qalam.app/Contents/MacOS/Qalam
+          test -d dist/Qalam.app/Contents/Resources/persian_ebook/data/fonts
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            dist/Qalam.app/Contents/Info.plist
+          du -sh dist/Qalam.app
+
+      - name: Package
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          # ditto, not zip: it keeps the symlinks and the executable bits that
+          # a Qt bundle depends on.
+          ditto -c -k --sequesterRsrc --keepParent Qalam.app "Qalam-${TAG}-macos-arm64.zip"
+          ls -l "Qalam-${TAG}-macos-arm64.zip"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "dist/Qalam-${TAG}-macos-arm64.zip" --clobber
+          gh release view "$TAG" --json isDraft,assets \
+            --jq '{draft: .isDraft, assets: [.assets[].name]}'
