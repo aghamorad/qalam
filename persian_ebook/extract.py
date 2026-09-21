@@ -51,6 +51,25 @@ SPACE_GAP_FLOOR = 2.5
 TIGHT = set("«»()[]{}.,،؛؟!:;…") | set("ًٌٍَُِّْٰٕٓٔ")
 
 
+def _is_private_use(ch: str) -> bool:
+    cp = ord(ch)
+    return (
+        0xE000 <= cp <= 0xF8FF
+        or 0xF0000 <= cp <= 0xFFFFD
+        or 0x100000 <= cp <= 0x10FFFD
+    )
+
+
+def _private_use_codepoints(lines: list["Line"]) -> list[int]:
+    """Unique private-use codepoints surfaced by the PDF text layer."""
+    return sorted({
+        ord(ch)
+        for line in lines
+        for ch in line.text
+        if _is_private_use(ch)
+    })
+
+
 @dataclass
 class Span:
     text: str
@@ -440,6 +459,15 @@ def _extract_page(page, index: int, block_ids: dict) -> Page:
     if not lines:
         lines = _lines_by_newline(str(attr.string()), fonts, n, page, index,
                                   width, height, block_ids)
+
+    private_use = _private_use_codepoints(lines)
+    if private_use:
+        sample = ", ".join(f"U+{cp:04X}" for cp in private_use[:8])
+        more = "…" if len(private_use) > 8 else ""
+        raise ValueError(
+            "PDF text layer contains unmapped private-use glyphs "
+            f"({sample}{more}); conversion would corrupt text"
+        )
 
     return Page(number=index, width=width, height=height, lines=lines)
 
