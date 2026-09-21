@@ -1,3 +1,3 @@
-"""Persian PDF/text -> Kindle-friendly EPUB converter."""
+"""Persian PDF/text -> RTL EPUB and optional MOBI converter."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
