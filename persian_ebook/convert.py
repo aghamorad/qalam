@@ -178,8 +178,8 @@ def convert(source: str | Path, out_path: str | Path | None = None,
     if font is None:
         warnings.append("هیچ قلم فارسی روی این دستگاه پیدا نشد")
     elif not font.redistributable:
-        warnings.append(f"قلم «{font.family}» اجازه بازتوزیع ندارد؛ "
-                        f"برای انتشار عمومی از قلم آزاد استفاده کنید")
+        warnings.append(f"مجوز بازتوزیع قلم «{font.family}» تأیید نشده؛ "
+                        f"پیش از انتشار عمومی مجوز آن را بررسی کنید")
     if repairs.get("brackets_repaired"):
         warnings.append(f"{repairs['brackets_repaired']} مورد پرانتز اصلاح شد")
 
