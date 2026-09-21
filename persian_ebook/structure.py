@@ -171,9 +171,24 @@ def _media_gap(a: Line, b: Line) -> float:
 
 
 def _median_gap(lines: list[Line]) -> float:
-    gaps = [_media_gap(a, b) for a, b in zip(lines, lines[1:])
-            if a.block == b.block]
-    gaps = [g for g in gaps if g >= 0]
+    """Typical inter-line whitespace on one page.
+
+    The old implementation required adjacent lines to share an extraction block
+    id, but PDFKit gives visual lines distinct ids in normal prose. That made
+    the baseline collapse to zero and blurred the distinction between ordinary
+    leading and an actual paragraph gap.
+    """
+    gaps = []
+    for a, b in zip(lines, lines[1:]):
+        if a.page != b.page:
+            continue
+        gap = _media_gap(a, b)
+        if gap < 0:
+            continue
+        # Large gaps are paragraph/section separators and should not define the
+        # page's normal leading. Keep the robust middle of plausible line gaps.
+        if gap <= max(a.size, b.size) * 1.25:
+            gaps.append(gap)
     if not gaps:
         return 0.0
     gaps.sort()
