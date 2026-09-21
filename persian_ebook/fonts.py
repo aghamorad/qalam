@@ -6,10 +6,10 @@ that the reader certainly does not have. So one family is chosen here and
 embedded in the archive.
 
 Two things matter when choosing: does the font actually cover Persian, and is it
-licensed to travel inside the file. Coverage is answered from the font's own
-cmap, so the list offers real fonts rather than a hardcoded guess. Licensing
-cannot be read off a file, so it comes from a list of families known to be
-open-licensed, and anything outside that list is reported as personal-use-only.
+licensed to travel inside the file. Coverage comes from the font's own cmap.
+Redistribution status comes only from the bundled font we ship under OFL or from
+license text embedded in the actual font file; family names alone are not enough
+evidence to make a licensing claim.
 """
 
 import re
@@ -53,15 +53,14 @@ PREFERRED_FAMILIES = (
     "noto sans arabic", "scheherazade", "markazi text", "kalameh", "dubai",
 )
 
-# Families whose license allows redistribution inside an EPUB. A font not on
-# this list still works, but shipping it in a book you give away is the user's
-# call to make, not ours - the GUI flags it rather than silently embedding it.
-OPEN_LICENSED = {
-    "vazirmatn", "vazir", "noto naskh arabic", "noto sans arabic", "noto kufi arabic",
-    "amiri", "scheherazade", "lateef", "sahel", "shabnam", "samim", "tanha",
-    "gandom", "parastoo", "estedad", "nazanin", "kalameh", "dubai", "yekan bakh",
-    "markazi text", "harmattan", "lemonada", "mirza", "gulzar", "nastaliq",
-}
+OPEN_LICENSE_MARKERS = (
+    "sil open font license",
+    "open font license",
+    "scripts.sil.org/ofl",
+    "openfontlicense",
+    "apache license, version 2.0",
+    "apache.org/licenses/license-2.0",
+)
 
 # Filename fragments that mark a face as bold or italic when the family's faces
 # ship as separate files. 'bd' is here for the Borna designs, which label the
@@ -90,7 +89,7 @@ class FontChoice:
 
     @property
     def label(self) -> str:
-        mark = "" if self.redistributable else "  [personal use]"
+        mark = "" if self.redistributable else "  [license unknown]"
         return f"{self.family}{mark}"
 
 
@@ -175,6 +174,51 @@ def family_name(path: Path) -> str:
     return path.stem
 
 
+
+def _license_allows_redistribution(path: Path) -> bool:
+    """Return True only when the actual font file provides positive evidence.
+
+    Bundled Vazirmatn is covered by the OFL file shipped with Qalam. For fonts
+    installed elsewhere, inspect the SFNT name table's license description/URL.
+    Unknown or missing metadata is deliberately treated as unknown, not as a
+    guess based on the family name.
+    """
+    try:
+        if path.resolve().is_relative_to(BUNDLED_DIR.resolve()):
+            return True
+    except Exception:
+        pass
+
+    try:
+        from fontTools.ttLib import TTCollection, TTFont
+        if path.suffix.lower() == ".ttc":
+            fonts = list(TTCollection(str(path), lazy=True).fonts)
+        else:
+            fonts = [TTFont(str(path), lazy=True, fontNumber=0)]
+    except Exception:
+        return False
+
+    if not fonts:
+        return False
+
+    for font in fonts:
+        try:
+            records = []
+            for rec in font["name"].names:
+                if rec.nameID not in (13, 14):
+                    continue
+                try:
+                    records.append(rec.toUnicode().strip().lower())
+                except Exception:
+                    continue
+            evidence = " ".join(records)
+        except Exception:
+            return False
+        if not evidence or not any(marker in evidence for marker in OPEN_LICENSE_MARKERS):
+            return False
+    return True
+
+
 def _stats(path: Path, cache: dict) -> tuple[int, int]:
     key = str(path)
     if key not in cache:
@@ -193,9 +237,9 @@ def _rank(family: str) -> int:
 def discover() -> list[FontChoice]:
     """Every Persian-capable family installed here, best candidates first.
 
-    Ranking prefers a design actually made for Persian, then a redistributable
-    license, then how completely the face covers the language - so the default
-    is a font that looks right, can legally ship, and has all the letters.
+    Ranking prefers a design actually made for Persian, then explicit evidence
+    that its license allows redistribution, then how completely the face covers
+    the language.
     """
     cache: dict = {}
     by_family: dict[str, list[Path]] = {}
@@ -233,7 +277,7 @@ def discover() -> list[FontChoice]:
             bold=bold,
             italic=italic,
             bold_italic=bold_italic,
-            redistributable=fam.strip().lower() in OPEN_LICENSED,
+            redistributable=all(_license_allows_redistribution(p) for p in paths),
             arabic_coverage=cov,
             persian_probe=probe,
             sources=sorted(paths),

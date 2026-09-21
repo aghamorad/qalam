@@ -114,7 +114,7 @@ def _ncx(chapters, outline, opts, book_id: str) -> str:
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"
      xml:lang="{opts.language}">
   <head>
-    <meta name="dtb:uid" content="{book_id}"/>
+    <meta name="dtb:uid" content="urn:uuid:{book_id}"/>
     <meta name="dtb:depth" content="{depth}"/>
   </head>
   <docTitle><text>{render.esc(opts.title or "کتاب")}</text></docTitle>
@@ -163,7 +163,6 @@ def _opf(chapters, opts, book_id: str, modified: str, font_names: list[str],
     <dc:language>{opts.language}</dc:language>
     {f'<dc:creator>{render.esc(opts.author)}</dc:creator>' if opts.author else ''}
     <meta property="dcterms:modified">{modified}</meta>
-    <meta name="cover" content="titlepage"/>
   </metadata>
   <manifest>
 {chr(10).join(manifest)}

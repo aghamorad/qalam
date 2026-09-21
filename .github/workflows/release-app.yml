@@ -11,12 +11,14 @@ name: Build Qalam.app and attach to release
 # ever wanted.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to attach the app to
-        required: true
-        default: v0.1.0
+        description: Optional release tag override (defaults to package version)
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -36,6 +38,65 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller
 
+      - name: Resolve release tag
+        env:
+          INPUT_TAG: ${{ inputs.tag || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            VERSION="$(python -c 'from persian_ebook import __version__; print(__version__)')"
+            TAG="v$VERSION"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Release tag: $TAG"
+
+      - name: Install calibre for MOBI validation
+        run: brew install --cask calibre
+
+      - name: Run regression tests
+        run: |
+          python tests/test_normalize.py
+          python tests/test_structure.py
+          python tests/test_fonts.py
+          python tests/test_extract_guard.py
+          python tests/test_semantic_epub.py
+          python tests/test_spacing.py
+
+      - name: Prove PDF to EPUB conversion before packaging
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/make_fixture_pdf.py tests/qalam-smoke.pdf
+          python tests/test_gui_smoke.py tests/qalam-smoke.pdf
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --no-notes -o tests/qalam-smoke-no-notes.epub
+          python tests/test_epub_output.py tests/converted/qalam-smoke.epub
+          python tests/test_epub_output.py tests/qalam-smoke-no-notes.epub --no-notes
+
+      - name: Prove MOBI output before packaging
+        run: |
+          set -euo pipefail
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --format mobi -o tests/qalam-smoke.mobi
+          test -s tests/qalam-smoke.mobi
+          ebook-meta tests/qalam-smoke.mobi >/tmp/qalam-mobi-meta.txt
+          grep -q "آزمون" /tmp/qalam-mobi-meta.txt
+
+      - name: Validate EPUB before packaging
+        run: |
+          set -euo pipefail
+          mkdir -p .epubcheck
+          curl -fsSL \
+            https://github.com/w3c/epubcheck/releases/download/v5.4.0/epubcheck-5.4.0.zip \
+            -o .epubcheck/epubcheck.zip
+          ditto -x -k .epubcheck/epubcheck.zip .epubcheck/unpacked
+          JAR="$(find .epubcheck/unpacked -name 'epubcheck.jar' -print -quit)"
+          test -n "$JAR"
+          java -jar "$JAR" tests/converted/qalam-smoke.epub
+          java -jar "$JAR" tests/qalam-smoke-no-notes.epub
+
       - name: Build Qalam.app
         run: python -m PyInstaller Qalam.spec --noconfirm
 
@@ -52,8 +113,6 @@ jobs:
           du -sh dist/Qalam.app
 
       - name: Package
-        env:
-          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           cd dist
@@ -62,12 +121,19 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent Qalam.app "Qalam-${TAG}-macos-arm64.zip"
           ls -l "Qalam-${TAG}-macos-arm64.zip"
 
-      - name: Attach to the release
+      - name: Create release and attach app
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; updating asset."
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Qalam $TAG" \
+              --generate-notes
+          fi
           gh release upload "$TAG" "dist/Qalam-${TAG}-macos-arm64.zip" --clobber
-          gh release view "$TAG" --json isDraft,assets \
-            --jq '{draft: .isDraft, assets: [.assets[].name]}'
+          gh release view "$TAG" --json isDraft,isPrerelease,assets,url \
+            --jq '{draft: .isDraft, prerelease: .isPrerelease, url: .url, assets: [.assets[].name]}'

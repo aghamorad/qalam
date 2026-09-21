@@ -4,17 +4,23 @@
 
 # Qalam — قلم
 
-A Persian PDF to EPUB converter. Drop in a PDF, get a right-to-left EPUB that a
-Kindle, an iPad, or a Kobo opens without further work.
+A Persian PDF to EPUB/MOBI converter. Drop in a text-based PDF and get a
+right-to-left EPUB, a KF8-based MOBI, or both. EPUB remains the recommended
+format for Send to Kindle; MOBI output is for direct sideloading and is produced
+locally through calibre.
 
 ![The Qalam window](docs/screenshot.png)
 
-## Why EPUB is the only output
+## EPUB and MOBI
 
-A Kindle reads EPUB directly: Amazon's Send to Kindle service converts it
-server-side. It will not take MOBI or KFX unless the device has been jailbroken,
-and both of those are dead formats anyway. So Qalam writes EPUB 3 and nothing
-else. Writing a second format would only add a step between you and the book.
+Qalam's native output is EPUB 3. iPad and Kobo can open it directly, and
+Amazon's Send to Kindle service accepts EPUB and converts it server-side.
+
+Optional MOBI output is generated from Qalam's EPUB with calibre's
+`ebook-convert`. Qalam requests KF8-only MOBI rather than old MOBI 6 because
+KF8 has the CSS/layout features Persian RTL books need. Amazon no longer accepts
+MOBI for KDP or Send to Kindle, so use this option for direct sideloading to a
+compatible Kindle or another reader, not for Amazon cloud delivery.
 
 ## Requirements
 
@@ -24,6 +30,7 @@ Windows build and no plan for one.
 
 - macOS 12 or later
 - Python 3.11 or later
+- calibre (optional; required only for MOBI output)
 
 ## Install
 
@@ -44,6 +51,8 @@ Or from the command line:
 
 ```bash
 .venv/bin/qalam book.pdf -o book.epub
+.venv/bin/qalam book.pdf --format mobi -o book.mobi
+.venv/bin/qalam book.pdf --format both
 ```
 
 ## Using it
@@ -57,9 +66,11 @@ Everyday options:
 
 | | |
 |---|---|
+| **Output format** | EPUB, MOBI (KF8), or both. MOBI requires calibre. |
 | **Pages** | Convert the whole book, or the first N pages while you check the settings. |
 | **Body font** | Any Persian family installed on this machine, plus the bundled Vazirmatn. |
-| **Keep footnotes** | Turn numbered notes into linked endnotes instead of dropping them. |
+| **Keep footnotes** | Preserve detected bottom-of-page notes as note blocks; turn this off to remove them. |
+| **Paragraph spacing** | Preserve obvious paragraph gaps and RTL first-line indentation from the source PDF instead of flattening every paragraph to one generic rhythm. |
 | **Also write an HTML preview** | A single file you can open in a browser and read before committing to the EPUB. |
 
 The command line takes the same options:
@@ -72,8 +83,10 @@ The command line takes the same options:
 
 ## How it works
 
-The conversion is four steps, and each one exists because of a specific thing
-that goes wrong otherwise.
+The native PDF-to-EPUB conversion is four steps, and each one exists because of
+a specific thing that goes wrong otherwise. If MOBI is requested, a fifth
+post-processing step asks calibre to convert the finished EPUB to KF8-based
+MOBI.
 
 **1. Extract.** PDFKit reads the page and reports what is actually printed:
 each span of text with its font size, family, style flags, and bounding box.
@@ -94,14 +107,17 @@ decomposed before codepoints are mapped, and bidi controls have to be gone
 before anything reasons about where a word ends.
 
 **3. Structure.** Lines become blocks: headings, paragraphs, poetry, footnotes.
+For body text, Qalam also uses page geometry to distinguish ordinary line leading
+from a real paragraph gap and to detect RTL first-line indentation from the
+right edge of the text column. Those cues are carried into the reflowable ebook.
 The signals are deliberately few, because every Persian PDF is laid out a little
 differently and a clever rule that reads one book correctly will wreck another.
 Font size is the load-bearing signal: a page's sizes cluster hard, and each
-cluster above body size is a heading level. Weight is not reliable (these
-legacy Persian fonts set the bold flag on ordinary body text), so it only breaks
-ties. Centering, vertical gaps, and right-edge indentation carry the rest. In a
-right-to-left book the paragraph's start edge is its *right* edge, which is the
-single easiest thing to get backwards.
+cluster above body size is a heading level. Weight is not reliable (some legacy
+Persian fonts set the bold flag on ordinary body text). Conventional section
+labels and numbering catch some body-sized headings; vertical gaps separate
+paragraphs. Qalam deliberately avoids claiming structure from geometry it cannot
+infer consistently.
 
 **4. Render and package.** Blocks become XHTML and CSS, and the result is zipped
 into an EPUB 3 by hand rather than through a library. That is deliberate:
@@ -124,17 +140,18 @@ with none installed.
 
 It also finds every Persian-capable family already on your Mac (measured from
 each font's own character map, not a hardcoded list) and offers them in the font
-menu. Families it knows to be open-licensed are marked; anything else is
-labelled `[personal use]`, because embedding a commercial Iranian font inside a
-book you give away is your call to make, not something to do silently. IRANSans
-is in that second group: the FontIran licence does not permit redistributing the
-files.
+menu. Qalam only marks a font as redistributable when the actual font file
+contains recognized open-license metadata, or when it is the bundled Vazirmatn.
+Anything else is labelled `[license unknown]`; check that font's license before
+sharing an EPUB or MOBI that embeds it.
 
 ## Development
 
 ```bash
 .venv/bin/python tests/test_normalize.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python tests/test_gui_smoke.py sample.pdf
+.venv/bin/python tests/test_structure.py
+.venv/bin/python tests/test_fonts.py
 ```
 
 Both are plain scripts that print a line per check and exit non-zero on failure;
@@ -143,7 +160,9 @@ neither needs a test runner.
 `test_gui_smoke.py` drives the real window through a real conversion on the
 offscreen Qt platform, which catches the failures a pipeline test cannot see: a
 signal wired to the wrong slot, a worker thread that never reports progress. It
-caps itself at six pages, so point it at a real book.
+caps itself at six pages. CI generates a small Persian PDF fixture and runs that
+conversion automatically; for local testing you can also point it at a real
+book.
 
 The icon is generated, not drawn by hand:
 

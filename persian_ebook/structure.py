@@ -9,11 +9,10 @@ differently and a clever rule that fires on one book will wreck another:
                 reliable here - these legacy Persian fonts set the bold flag on
                 ordinary body text (verified on the Mostazmi article, where the
                 whole body carries it), so bold only breaks ties.
-  centering     a heading is centered; a paragraph is not. Measured against the
-                media box, with a loose tolerance because RTL justification is
-                ragged on the right by design.
-  geometry      vertical gaps and right-edge indentation separate paragraphs.
-                In RTL the paragraph's start edge is its RIGHT edge.
+  markers       conventional section labels and numbered headings catch
+                body-sized headings that typography alone cannot distinguish.
+  geometry      vertical gaps separate paragraphs; geometry is deliberately
+                not asked to infer more than the PDF consistently tells us.
   repetition    a line that recurs at the same height across many pages is a
                 running head or a folio, and belongs in the bin, not the EPUB.
 
@@ -30,9 +29,6 @@ from .extract import Document, Line, Span
 # A line is a heading candidate if it carries a size at least this much larger
 # than the body text.
 HEADING_RATIO = 1.12
-
-# Centered lines up to this many characters can be headings even at body size.
-CENTERED_HEADING_CHARS = 60
 
 # A line this far below the body size, in the lower part of the page, is a note.
 NOTE_SIZE_RATIO = 0.94
@@ -175,13 +171,68 @@ def _media_gap(a: Line, b: Line) -> float:
 
 
 def _median_gap(lines: list[Line]) -> float:
-    gaps = [_media_gap(a, b) for a, b in zip(lines, lines[1:])
-            if a.block == b.block]
-    gaps = [g for g in gaps if g >= 0]
+    """Typical inter-line whitespace on one page.
+
+    The old implementation required adjacent lines to share an extraction block
+    id, but PDFKit gives visual lines distinct ids in normal prose. That made
+    the baseline collapse to zero and blurred the distinction between ordinary
+    leading and an actual paragraph gap.
+    """
+    gaps = []
+    for a, b in zip(lines, lines[1:]):
+        if a.page != b.page:
+            continue
+        gap = _media_gap(a, b)
+        if gap < 0:
+            continue
+        # Large gaps are paragraph/section separators and should not define the
+        # page's normal leading. Keep the robust middle of plausible line gaps.
+        if gap <= max(a.size, b.size) * 1.25:
+            gaps.append(gap)
     if not gaps:
         return 0.0
     gaps.sort()
     return gaps[len(gaps) // 2]
+
+
+def _body_right_edge(lines: list[Line], body: float) -> float:
+    """Typical RTL start edge for body text on a page.
+
+    In an RTL paragraph the first-line indent moves the line's RIGHT edge left.
+    Using the upper quartile of body-line right edges makes ordinary full-width
+    lines define the margin while ignoring indented starts and short ornaments.
+    """
+    edges = sorted(
+        l.bbox[2] for l in lines
+        if l.bbox[2] > l.bbox[0] and abs(l.size - body) <= max(0.6, body * 0.08)
+    )
+    if not edges:
+        return 0.0
+    return edges[min(len(edges) - 1, int(len(edges) * 0.75))]
+
+
+def _first_line_indent_em(line: Line, right_edge: float, body: float) -> float:
+    """Estimated first-line indent in em, or zero when it is not significant."""
+    if not right_edge or not body or not line.bbox[2]:
+        return 0.0
+    points = max(0.0, right_edge - line.bbox[2])
+    # Sub-point/right-edge jitter is common in PDFs. A real paragraph indent is
+    # normally visibly larger than that, so require roughly half an em.
+    if points < max(4.0, body * 0.50):
+        return 0.0
+    return min(3.0, round(points / body, 2))
+
+
+def _space_before_em(previous: Line | None, line: Line,
+                     median_gap: float, body: float) -> float:
+    """Extra vertical whitespace before a block, normalized to em units."""
+    if previous is None or not body:
+        return 0.0
+    gap = _media_gap(previous, line)
+    extra = max(0.0, gap - median_gap)
+    if extra < max(2.0, body * 0.20):
+        return 0.0
+    return min(3.0, round(extra / body, 2))
 
 
 def _merge_spans(left: list[Span], right: list[Span]) -> list[Span]:
@@ -241,6 +292,7 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
         note_y = _page_note_region(page)
         page_lines = [l for l in page.lines]
         med_gap = _median_gap(page_lines)
+        right_edge = _body_right_edge(page_lines, body)
 
         for line in page_lines:
             text = line.text.strip()
@@ -253,9 +305,16 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
                 stats["dropped_folio"] += 1
                 continue
 
-            is_note = (keep_notes and line.size <= body * NOTE_SIZE_RATIO
+            # Detect notes independently of the keep/drop preference. Previously
+            # keep_notes=False disabled note detection, so note text fell through
+            # and was rendered as an ordinary paragraph instead of being removed.
+            is_note = (line.size <= body * NOTE_SIZE_RATIO
                        and line.bbox[1] >= note_y)
             if is_note:
+                if not keep_notes:
+                    flush()
+                    stats["dropped_notes"] += 1
+                    continue
                 if pending_kind != "note" or pending_meta.get("page") != line.page:
                     open_block("note", line, meta={"page": line.page})
                 pending.append(line)
@@ -272,17 +331,36 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
                 continue
 
             # Body text: start a paragraph, or continue the open one.
+            # Persian/RTL first-line indentation is visible as the line's RIGHT
+            # edge moving left from the page's normal body-text edge.
+            previous = pending[-1] if pending else None
+            indent_em = _first_line_indent_em(line, right_edge, body)
+            previous_indent = (
+                _first_line_indent_em(previous, right_edge, body)
+                if previous is not None else 0.0
+            )
+            gap_em = _space_before_em(previous, line, med_gap, body)
+
             new_para = False
             if pending_kind != "p":
                 new_para = True
             elif pending and _media_gap(pending[-1], line) > max(2.0, med_gap * 1.6):
+                new_para = True
+            elif indent_em and not previous_indent:
                 new_para = True
             elif pending and pending[-1].text.strip().endswith(SENTENCE_END) \
                     and line.size != pending[-1].size:
                 new_para = True
 
             if new_para:
-                open_block("p", line)
+                open_block(
+                    "p",
+                    line,
+                    meta={
+                        "first_line_indent_em": indent_em,
+                        "space_before_em": gap_em,
+                    },
+                )
             pending.append(line)
 
     flush()
