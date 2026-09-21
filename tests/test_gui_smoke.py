@@ -52,35 +52,30 @@ if sample:
     assert win.go.isEnabled(), "convert button stayed disabled after a drop"
     print("  pass  convert enabled once a file is listed")
 
-    seen = {"progress": 0, "done": None, "failed": None}
-
-    def watch_progress(frac, msg):
-        seen["progress"] += 1
-
+    state = {"timed_out": False}
     win.start()
-    win.thread.progress.connect(watch_progress)
-    win.thread.item_done.connect(lambda r: seen.update(done=r))
-    win.thread.item_failed.connect(lambda n, m: seen.update(failed=(n, m)))
+
+    # Poll the window-owned thread instead of attaching test-only signals after
+    # start(). A tiny fixture can finish before a late signal connection lands.
+    poll = QTimer()
+    poll.setInterval(25)
+    poll.timeout.connect(lambda: app.quit() if win.thread is None else None)
+    poll.start()
 
     timed_out = QTimer()
     timed_out.setSingleShot(True)
-    timed_out.timeout.connect(lambda: (seen.update(timed_out=True), app.quit()))
+    timed_out.timeout.connect(
+        lambda: (state.update(timed_out=True), app.quit()))
     timed_out.start(120_000)
-    win.thread.finished.connect(app.quit)
-    app.exec()
-    assert not seen.get("timed_out"), "conversion never finished"
 
-    assert seen["failed"] is None, f"conversion failed: {seen['failed']}"
-    assert seen["done"] is not None, "no result was emitted"
-    assert seen["progress"] > 3, f"progress fired only {seen['progress']} times"
-    result = seen["done"]
-    assert result.epub_path.exists(), "epub was not written"
+    app.exec()
+    assert not state["timed_out"], "conversion never finished"
+    assert win.last_output is not None, f"conversion failed: {win.status.text()}"
+    assert win.last_output.exists(), "epub was not written"
     assert win.reveal_btn.isEnabled(), "reveal button not enabled after success"
     assert win.bar.value() == 1000, f"progress bar ended at {win.bar.value()}"
-    print(f"  pass  converted {result.epub_path.name}: "
-          f"{result.pages_read} pages, {result.blocks} blocks, "
-          f"{result.headings} headings, font {result.font or 'default'}")
-    print(f"  pass  progress fired {seen['progress']} times, bar reached 100%")
+    print(f"  pass  converted {win.last_output.name}")
+    print("  pass  progress bar reached 100%")
     print(f"  pass  status line: {win.status.text()[:90]}")
 
 print()
