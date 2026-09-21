@@ -37,9 +37,12 @@ assert not win.go.isEnabled(), "convert button enabled with an empty list"
 print("  pass  convert disabled with nothing to do")
 
 win.set_language("en")
-assert win.go.text() == "Convert to EPUB", win.go.text()
+assert win.go.text() == "Convert", win.go.text()
 assert win.lang_en.isChecked()
-print("  pass  english interface")
+assert [win.format_combo.itemData(i) for i in range(win.format_combo.count())] == [
+    "epub", "mobi", "both"
+]
+print("  pass  english interface and output format choices")
 win.set_language("fa")
 assert win.lang_fa.isChecked()
 print("  pass  persian interface")
@@ -71,7 +74,7 @@ if sample:
     app.exec()
     assert not state["timed_out"], "conversion never finished"
     assert win.last_output is not None, f"conversion failed: {win.status.text()}"
-    assert win.last_output.exists(), "epub was not written"
+    assert win.last_output.exists(), "output file was not written"
     assert win.reveal_btn.isEnabled(), "reveal button not enabled after success"
     assert win.bar.value() == 1000, f"progress bar ended at {win.bar.value()}"
     print(f"  pass  converted {win.last_output.name}")
