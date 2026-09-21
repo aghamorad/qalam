@@ -36,6 +36,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller
 
+      - name: Install calibre for MOBI validation
+        run: brew install --cask calibre
+
       - name: Run regression tests
         run: |
           python tests/test_normalize.py
@@ -52,6 +55,15 @@ jobs:
             --no-notes -o tests/qalam-smoke-no-notes.epub
           python tests/test_epub_output.py tests/converted/qalam-smoke.epub
           python tests/test_epub_output.py tests/qalam-smoke-no-notes.epub --no-notes
+
+      - name: Prove MOBI output before packaging
+        run: |
+          set -euo pipefail
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --format mobi -o tests/qalam-smoke.mobi
+          test -s tests/qalam-smoke.mobi
+          ebook-meta tests/qalam-smoke.mobi >/tmp/qalam-mobi-meta.txt
+          grep -q "آزمون" /tmp/qalam-mobi-meta.txt
 
       - name: Validate EPUB before packaging
         run: |
