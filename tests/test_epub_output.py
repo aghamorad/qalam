@@ -34,18 +34,19 @@ with zipfile.ZipFile(path) as zf:
         if name.endswith(".xhtml")
     )
 
+    # Validate visible text while the archive is still open. Legitimate
+    # paragraph or inline-element boundaries may occur between words.
+    visible_parts = []
+    for name in zf.namelist():
+        if name.startswith("OEBPS/text/ch") and name.endswith(".xhtml"):
+            root = ET.fromstring(zf.read(name))
+            visible_parts.append(" ".join(root.itertext()))
+    visible = re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
+
 assert "آزمون" in xhtml, "Persian fixture text did not survive conversion"
 
-# Validate visible text rather than the raw XHTML string: legitimate paragraph
-# or inline-element boundaries may occur between words. Requiring \s+ between
-# each token still catches the failure we care about — glued Persian words —
-# while also requiring the original word order to survive extraction.
-visible_parts = []
-for name in zf.namelist():
-    if name.startswith("OEBPS/text/ch") and name.endswith(".xhtml"):
-        root = ET.fromstring(zf.read(name))
-        visible_parts.append(" ".join(root.itertext()))
-visible = re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
+# Requiring \s+ between each token still catches glued Persian words while
+# allowing legitimate XHTML element boundaries and line wrapping.
 sentence = re.compile(
     r"این\s+یک\s+متن\s+فارسی\s+برای\s+آزمون\s+واقعی\s+استخراج\s+و\s+تبدیل\s+است[.]"
 )
