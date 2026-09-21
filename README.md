@@ -4,18 +4,23 @@
 
 # Qalam — قلم
 
-A Persian PDF to EPUB converter. Drop in a text-based PDF and get a
-right-to-left EPUB. iPad and Kobo can open the EPUB directly; Amazon's Send to
-Kindle service accepts EPUB and converts it for Kindle.
+A Persian PDF to EPUB/MOBI converter. Drop in a text-based PDF and get a
+right-to-left EPUB, a KF8-based MOBI, or both. EPUB remains the recommended
+format for Send to Kindle; MOBI output is for direct sideloading and is produced
+locally through calibre.
 
 ![The Qalam window](docs/screenshot.png)
 
-## Why EPUB is the only output
+## EPUB and MOBI
 
-Qalam writes EPUB 3 because it is the portable source format this workflow
-needs. iPad and Kobo can open it directly. Amazon's Send to Kindle service
-accepts EPUB and converts it server-side for Kindle. Qalam does not generate
-MOBI or KFX.
+Qalam's native output is EPUB 3. iPad and Kobo can open it directly, and
+Amazon's Send to Kindle service accepts EPUB and converts it server-side.
+
+Optional MOBI output is generated from Qalam's EPUB with calibre's
+`ebook-convert`. Qalam requests KF8-only MOBI rather than old MOBI 6 because
+KF8 has the CSS/layout features Persian RTL books need. Amazon no longer accepts
+MOBI for KDP or Send to Kindle, so use this option for direct sideloading to a
+compatible Kindle or another reader, not for Amazon cloud delivery.
 
 ## Requirements
 
@@ -25,6 +30,7 @@ Windows build and no plan for one.
 
 - macOS 12 or later
 - Python 3.11 or later
+- calibre (optional; required only for MOBI output)
 
 ## Install
 
@@ -45,6 +51,8 @@ Or from the command line:
 
 ```bash
 .venv/bin/qalam book.pdf -o book.epub
+.venv/bin/qalam book.pdf --format mobi -o book.mobi
+.venv/bin/qalam book.pdf --format both
 ```
 
 ## Using it
@@ -58,6 +66,7 @@ Everyday options:
 
 | | |
 |---|---|
+| **Output format** | EPUB, MOBI (KF8), or both. MOBI requires calibre. |
 | **Pages** | Convert the whole book, or the first N pages while you check the settings. |
 | **Body font** | Any Persian family installed on this machine, plus the bundled Vazirmatn. |
 | **Keep footnotes** | Preserve detected bottom-of-page notes as note blocks; turn this off to remove them. |
@@ -73,8 +82,10 @@ The command line takes the same options:
 
 ## How it works
 
-The conversion is four steps, and each one exists because of a specific thing
-that goes wrong otherwise.
+The native PDF-to-EPUB conversion is four steps, and each one exists because of
+a specific thing that goes wrong otherwise. If MOBI is requested, a fifth
+post-processing step asks calibre to convert the finished EPUB to KF8-based
+MOBI.
 
 **1. Extract.** PDFKit reads the page and reports what is actually printed:
 each span of text with its font size, family, style flags, and bounding box.
@@ -128,7 +139,7 @@ each font's own character map, not a hardcoded list) and offers them in the font
 menu. Qalam only marks a font as redistributable when the actual font file
 contains recognized open-license metadata, or when it is the bundled Vazirmatn.
 Anything else is labelled `[license unknown]`; check that font's license before
-sharing an EPUB that embeds it.
+sharing an EPUB or MOBI that embeds it.
 
 ## Development
 
