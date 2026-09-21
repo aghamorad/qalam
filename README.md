@@ -4,17 +4,18 @@
 
 # Qalam — قلم
 
-A Persian PDF to EPUB converter. Drop in a PDF, get a right-to-left EPUB that a
-Kindle, an iPad, or a Kobo opens without further work.
+A Persian PDF to EPUB converter. Drop in a text-based PDF and get a
+right-to-left EPUB. iPad and Kobo can open the EPUB directly; Amazon's Send to
+Kindle service accepts EPUB and converts it for Kindle.
 
 ![The Qalam window](docs/screenshot.png)
 
 ## Why EPUB is the only output
 
-A Kindle reads EPUB directly: Amazon's Send to Kindle service converts it
-server-side. It will not take MOBI or KFX unless the device has been jailbroken,
-and both of those are dead formats anyway. So Qalam writes EPUB 3 and nothing
-else. Writing a second format would only add a step between you and the book.
+Qalam writes EPUB 3 because it is the portable source format this workflow
+needs. iPad and Kobo can open it directly. Amazon's Send to Kindle service
+accepts EPUB and converts it server-side for Kindle. Qalam does not generate
+MOBI or KFX.
 
 ## Requirements
 
@@ -59,7 +60,7 @@ Everyday options:
 |---|---|
 | **Pages** | Convert the whole book, or the first N pages while you check the settings. |
 | **Body font** | Any Persian family installed on this machine, plus the bundled Vazirmatn. |
-| **Keep footnotes** | Turn numbered notes into linked endnotes instead of dropping them. |
+| **Keep footnotes** | Preserve detected bottom-of-page notes as note blocks; turn this off to remove them. |
 | **Also write an HTML preview** | A single file you can open in a browser and read before committing to the EPUB. |
 
 The command line takes the same options:
@@ -97,11 +98,11 @@ before anything reasons about where a word ends.
 The signals are deliberately few, because every Persian PDF is laid out a little
 differently and a clever rule that reads one book correctly will wreck another.
 Font size is the load-bearing signal: a page's sizes cluster hard, and each
-cluster above body size is a heading level. Weight is not reliable (these
-legacy Persian fonts set the bold flag on ordinary body text), so it only breaks
-ties. Centering, vertical gaps, and right-edge indentation carry the rest. In a
-right-to-left book the paragraph's start edge is its *right* edge, which is the
-single easiest thing to get backwards.
+cluster above body size is a heading level. Weight is not reliable (some legacy
+Persian fonts set the bold flag on ordinary body text). Conventional section
+labels and numbering catch some body-sized headings; vertical gaps separate
+paragraphs. Qalam deliberately avoids claiming structure from geometry it cannot
+infer consistently.
 
 **4. Render and package.** Blocks become XHTML and CSS, and the result is zipped
 into an EPUB 3 by hand rather than through a library. That is deliberate:
@@ -124,17 +125,18 @@ with none installed.
 
 It also finds every Persian-capable family already on your Mac (measured from
 each font's own character map, not a hardcoded list) and offers them in the font
-menu. Families it knows to be open-licensed are marked; anything else is
-labelled `[personal use]`, because embedding a commercial Iranian font inside a
-book you give away is your call to make, not something to do silently. IRANSans
-is in that second group: the FontIran licence does not permit redistributing the
-files.
+menu. Qalam only marks a font as redistributable when the actual font file
+contains recognized open-license metadata, or when it is the bundled Vazirmatn.
+Anything else is labelled `[license unknown]`; check that font's license before
+sharing an EPUB that embeds it.
 
 ## Development
 
 ```bash
 .venv/bin/python tests/test_normalize.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python tests/test_gui_smoke.py sample.pdf
+.venv/bin/python tests/test_structure.py
+.venv/bin/python tests/test_fonts.py
 ```
 
 Both are plain scripts that print a line per check and exit non-zero on failure;
@@ -143,7 +145,9 @@ neither needs a test runner.
 `test_gui_smoke.py` drives the real window through a real conversion on the
 offscreen Qt platform, which catches the failures a pipeline test cannot see: a
 signal wired to the wrong slot, a worker thread that never reports progress. It
-caps itself at six pages, so point it at a real book.
+caps itself at six pages. CI generates a small Persian PDF fixture and runs that
+conversion automatically; for local testing you can also point it at a real
+book.
 
 The icon is generated, not drawn by hand:
 
