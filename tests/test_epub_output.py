@@ -2,6 +2,7 @@
 """Check the EPUB archive produced by the generated CI fixture."""
 import sys
 import re
+import unicodedata
 import zipfile
 from xml.etree import ElementTree as ET
 from pathlib import Path
@@ -41,7 +42,6 @@ with zipfile.ZipFile(path) as zf:
         if name.startswith("OEBPS/text/ch") and name.endswith(".xhtml"):
             root = ET.fromstring(zf.read(name))
             visible_parts.append(" ".join(root.itertext()))
-    import unicodedata
     visible = unicodedata.normalize(
         "NFC", re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
     )
