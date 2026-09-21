@@ -20,7 +20,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="تبدیل پی‌دی‌اف فارسی به ایپاب (کیندل و آی‌پد)")
     p.add_argument("source", type=Path, nargs="?", help="PDF ورودی")
     p.add_argument("-o", "--out", type=Path, default=None,
-                   help="مسیر ایپاب خروجی")
+                   help="مسیر فایل خروجی")
+    p.add_argument("--format", choices=("epub", "mobi", "both"), default="epub",
+                   help="قالب خروجی: epub، mobi یا both")
     p.add_argument("--title", default="", help="عنوان کتاب")
     p.add_argument("--author", default="", help="نام نویسنده")
     p.add_argument("--font", default="", help="نام خانوادگی قلم (مثلاً Vazirmatn)")
@@ -73,6 +75,7 @@ def main(argv=None) -> int:
             max_pages=args.pages,
             keep_notes=not args.no_notes,
             want_preview=args.preview,
+            output_format=args.format,
             progress=progress,
         )
     except Exception as exc:                      # noqa: BLE001
