@@ -163,7 +163,6 @@ def _opf(chapters, opts, book_id: str, modified: str, font_names: list[str],
     <dc:language>{opts.language}</dc:language>
     {f'<dc:creator>{render.esc(opts.author)}</dc:creator>' if opts.author else ''}
     <meta property="dcterms:modified">{modified}</meta>
-    <meta name="cover" content="titlepage"/>
   </metadata>
   <manifest>
 {chr(10).join(manifest)}
