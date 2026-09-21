@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Check the EPUB archive produced by the generated CI fixture."""
 import sys
+import re
 import zipfile
+from xml.etree import ElementTree as ET
 from pathlib import Path
 
 if len(sys.argv) < 2:
@@ -33,8 +35,23 @@ with zipfile.ZipFile(path) as zf:
     )
 
 assert "آزمون" in xhtml, "Persian fixture text did not survive conversion"
-assert "این یک متن فارسی برای آزمون واقعی استخراج و تبدیل است." in xhtml, (
-    "word spacing/order from the Persian PDF did not survive conversion"
+
+# Validate visible text rather than the raw XHTML string: legitimate paragraph
+# or inline-element boundaries may occur between words. Requiring \s+ between
+# each token still catches the failure we care about — glued Persian words —
+# while also requiring the original word order to survive extraction.
+visible_parts = []
+for name in zf.namelist():
+    if name.startswith("OEBPS/text/ch") and name.endswith(".xhtml"):
+        root = ET.fromstring(zf.read(name))
+        visible_parts.append(" ".join(root.itertext()))
+visible = re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
+sentence = re.compile(
+    r"این\s+یک\s+متن\s+فارسی\s+برای\s+آزمون\s+واقعی\s+استخراج\s+و\s+تبدیل\s+است[.]"
+)
+assert sentence.search(visible), (
+    "Persian word spacing/order from the PDF did not survive conversion: "
+    + repr(visible[:500])
 )
 has_note = "پانوشت کوچک" in xhtml
 if no_notes:
