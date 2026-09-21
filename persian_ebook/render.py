@@ -103,6 +103,19 @@ def block_xhtml(block: Block, opts: RenderOptions) -> str:
         return f'      <div class="poem">{body}\n      </div>'
     if kind == "caption":
         return f'      <p class="caption">{inner}</p>'
+    if kind == "p":
+        styles = []
+        indent = block.meta.get("first_line_indent_em")
+        if indent is None:
+            indent = 1.6 if opts.indent_paragraphs else 0.0
+        styles.append(f"text-indent: {float(indent):.2f}em")
+
+        space_before = block.meta.get("space_before_em")
+        if space_before is not None:
+            styles.append(f"margin-top: {float(space_before):.2f}em")
+
+        style = "; ".join(styles)
+        return f'      <p style="{style}">{inner}</p>'
     return f"      <p>{inner}</p>"
 
 
@@ -229,7 +242,7 @@ p {{
 }}
 
 p + p, aside + p, div + p {{
-  margin-top: 0.35em;
+  margin-top: 0;
 }}
 
 p:first-of-type, h1 + p, h2 + p, h3 + p {{
