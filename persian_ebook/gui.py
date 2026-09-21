@@ -51,7 +51,7 @@ STRINGS = {
     "fa": {
         "window": "قلم — فارسی به ایپاب",
         "tagline": "پی‌دی‌اف فارسی را به ایپاب راست‌به‌چپ تبدیل کنید",
-        "subtitle": "ایپاب تنها قالبی است که کیندل بدون جیلبریک می‌خواند؛ قلم فقط همین را می‌سازد.",
+        "subtitle": "قلم ایپاب استاندارد می‌سازد؛ آی‌پد و کوبو مستقیم بازش می‌کنند و «ارسال به کیندل» آن را برای کیندل تبدیل می‌کند.",
         "drop": "فایل‌های پی‌دی‌اف را اینجا رها کنید",
         "drop_sub": "یا از دکمهٔ «افزودن» استفاده کنید",
         "add": "افزودن…",
@@ -75,7 +75,7 @@ STRINGS = {
         "font_selected": "«{name}» انتخاب شده است.",
         "font_support": "پشتیبانی از {ok} نویسه از {total} نویسهٔ ویژهٔ فارسی.",
         "font_free": "اجازهٔ بازتوزیع دارد.",
-        "font_paid": "اجازهٔ بازتوزیع ندارد؛ برای انتشار عمومی مناسب نیست.",
+        "font_paid": "مجوز بازتوزیع این قلم تأیید نشده؛ پیش از انتشار عمومی بررسی کنید.",
         "convert": "تبدیل به ایپاب",
         "convert_n": "تبدیل {n} فایل",
         "reveal": "نمایش خروجی",
@@ -97,7 +97,8 @@ STRINGS = {
             "قلمی نوشته شده‌اند که هیچ کتاب‌خوانی ندارد. قلم آن‌ها را "
             "راست‌به‌چپ می‌خواند، سربخش‌ها و پانوشت‌ها را نگه می‌دارد، یک "
             "قلم فارسی را داخل خودِ فایل جای می‌دهد و ایپاب ۳ می‌سازد؛ "
-            "کیندل، آی‌پد و کوبو آن را همان‌طور که هست باز می‌کنند.<br><br>"
+            "آی‌پد و کوبو آن را مستقیم باز می‌کنند؛ سرویس «ارسال به کیندل» "
+            "ایپاب را برای کیندل تبدیل می‌کند.<br><br>"
             "تنها قالب خروجی ایپاب است. سرویس «ارسال به کیندل» خودش ایپاب را "
             "روی سرور تبدیل می‌کند، و کیندل هم MOBI و KFX را نمی‌پذیرد مگر "
             "جیلبریک شده باشد؛ پس ساختن‌شان فقط یک مرحلهٔ اضافه است.<br><br>"
@@ -107,8 +108,8 @@ STRINGS = {
     "en": {
         "window": "Qalam — Persian to EPUB",
         "tagline": "Turn Persian PDFs into right-to-left EPUBs",
-        "subtitle": "EPUB is the format a Kindle reads as-is, so it is the only "
-                    "one Qalam writes — no jailbreak, no second conversion.",
+        "subtitle": "Qalam writes standard EPUB 3 files. iPad and Kobo open them "
+                    "directly; Send to Kindle accepts EPUB and converts it for Kindle.",
         "drop": "Drop Persian PDFs here",
         "drop_sub": "or use the Add button",
         "add": "Add…",
@@ -132,8 +133,8 @@ STRINGS = {
         "font_selected": "“{name}” selected.",
         "font_support": "{ok} of {total} Persian-specific characters supported.",
         "font_free": "Free to redistribute.",
-        "font_paid": "Not redistributable — fine for personal use, not for "
-                     "publishing.",
+        "font_paid": "Redistribution license not verified — check the font license "
+                     "before publishing.",
         "convert": "Convert to EPUB",
         "convert_n": "Convert {n} files",
         "reveal": "Show output",
@@ -155,8 +156,8 @@ STRINGS = {
             "Persian PDFs are usually typeset left-to-right, in fonts no "
             "e-reader owns. Qalam reads them right-to-left, keeps the "
             "headings and footnotes, embeds a Persian font inside the file, "
-            "and writes an EPUB 3 that a Kindle, an iPad and a Kobo all open "
-            "as-is.<br><br>"
+            "and writes a standard EPUB 3. iPad and Kobo open it directly; "
+            "Send to Kindle accepts EPUB and converts it for Kindle.<br><br>"
             "EPUB is the only output on purpose. Send to Kindle converts an "
             "EPUB server-side already, and a Kindle will not take MOBI or KFX "
             "unless it has been jailbroken — so writing them would only add a "
