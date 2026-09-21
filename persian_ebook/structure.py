@@ -180,6 +180,46 @@ def _median_gap(lines: list[Line]) -> float:
     return gaps[len(gaps) // 2]
 
 
+def _body_right_edge(lines: list[Line], body: float) -> float:
+    """Typical RTL start edge for body text on a page.
+
+    In an RTL paragraph the first-line indent moves the line's RIGHT edge left.
+    Using the upper quartile of body-line right edges makes ordinary full-width
+    lines define the margin while ignoring indented starts and short ornaments.
+    """
+    edges = sorted(
+        l.bbox[2] for l in lines
+        if l.bbox[2] > l.bbox[0] and abs(l.size - body) <= max(0.6, body * 0.08)
+    )
+    if not edges:
+        return 0.0
+    return edges[min(len(edges) - 1, int(len(edges) * 0.75))]
+
+
+def _first_line_indent_em(line: Line, right_edge: float, body: float) -> float:
+    """Estimated first-line indent in em, or zero when it is not significant."""
+    if not right_edge or not body or not line.bbox[2]:
+        return 0.0
+    points = max(0.0, right_edge - line.bbox[2])
+    # Sub-point/right-edge jitter is common in PDFs. A real paragraph indent is
+    # normally visibly larger than that, so require roughly half an em.
+    if points < max(4.0, body * 0.50):
+        return 0.0
+    return min(3.0, round(points / body, 2))
+
+
+def _space_before_em(previous: Line | None, line: Line,
+                     median_gap: float, body: float) -> float:
+    """Extra vertical whitespace before a block, normalized to em units."""
+    if previous is None or not body:
+        return 0.0
+    gap = _media_gap(previous, line)
+    extra = max(0.0, gap - median_gap)
+    if extra < max(2.0, body * 0.20):
+        return 0.0
+    return min(3.0, round(extra / body, 2))
+
+
 def _merge_spans(left: list[Span], right: list[Span]) -> list[Span]:
     """Join two span lists with a space, keeping style boundaries."""
     if not left:
@@ -237,6 +277,7 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
         note_y = _page_note_region(page)
         page_lines = [l for l in page.lines]
         med_gap = _median_gap(page_lines)
+        right_edge = _body_right_edge(page_lines, body)
 
         for line in page_lines:
             text = line.text.strip()
@@ -275,17 +316,36 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
                 continue
 
             # Body text: start a paragraph, or continue the open one.
+            # Persian/RTL first-line indentation is visible as the line's RIGHT
+            # edge moving left from the page's normal body-text edge.
+            previous = pending[-1] if pending else None
+            indent_em = _first_line_indent_em(line, right_edge, body)
+            previous_indent = (
+                _first_line_indent_em(previous, right_edge, body)
+                if previous is not None else 0.0
+            )
+            gap_em = _space_before_em(previous, line, med_gap, body)
+
             new_para = False
             if pending_kind != "p":
                 new_para = True
             elif pending and _media_gap(pending[-1], line) > max(2.0, med_gap * 1.6):
+                new_para = True
+            elif indent_em and not previous_indent:
                 new_para = True
             elif pending and pending[-1].text.strip().endswith(SENTENCE_END) \
                     and line.size != pending[-1].size:
                 new_para = True
 
             if new_para:
-                open_block("p", line)
+                open_block(
+                    "p",
+                    line,
+                    meta={
+                        "first_line_indent_em": indent_em,
+                        "space_before_em": gap_em,
+                    },
+                )
             pending.append(line)
 
     flush()
