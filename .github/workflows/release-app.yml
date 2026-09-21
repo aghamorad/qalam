@@ -36,6 +36,36 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller
 
+      - name: Run regression tests
+        run: |
+          python tests/test_normalize.py
+          python tests/test_structure.py
+          python tests/test_fonts.py
+
+      - name: Prove PDF to EPUB conversion before packaging
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/make_fixture_pdf.py tests/qalam-smoke.pdf
+          python tests/test_gui_smoke.py tests/qalam-smoke.pdf
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --no-notes -o tests/qalam-smoke-no-notes.epub
+          python tests/test_epub_output.py tests/converted/qalam-smoke.epub
+          python tests/test_epub_output.py tests/qalam-smoke-no-notes.epub --no-notes
+
+      - name: Validate EPUB before packaging
+        run: |
+          set -euo pipefail
+          mkdir -p .epubcheck
+          curl -fsSL \
+            https://github.com/w3c/epubcheck/releases/download/v5.4.0/epubcheck-5.4.0.zip \
+            -o .epubcheck/epubcheck.zip
+          ditto -x -k .epubcheck/epubcheck.zip .epubcheck/unpacked
+          JAR="$(find .epubcheck/unpacked -name 'epubcheck.jar' -print -quit)"
+          test -n "$JAR"
+          java -jar "$JAR" tests/converted/qalam-smoke.epub
+          java -jar "$JAR" tests/qalam-smoke-no-notes.epub
+
       - name: Build Qalam.app
         run: python -m PyInstaller Qalam.spec --noconfirm
 
