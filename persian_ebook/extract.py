@@ -468,11 +468,15 @@ def extract_pdf(path: str | Path, max_pages: int | None = None,
     for i in range(limit):
         page = doc.pageAtIndex_(i)
         if page is None:
-            continue
+            raise RuntimeError(
+                f"{path.name}: PDFKit returned no page object for page {i + 1}"
+            )
         try:
             pages.append(_extract_page(page, i, block_ids))
-        except Exception:
-            continue
+        except Exception as exc:
+            raise RuntimeError(
+                f"{path.name}: failed to extract page {i + 1}: {exc}"
+            ) from exc
 
     return Document(path=path, pages=pages, total_pages=total,
                     meta=_page_meta(doc))
