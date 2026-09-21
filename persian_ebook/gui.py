@@ -58,6 +58,11 @@ STRINGS = {
         "remove": "برداشتن",
         "clear": "خالی کردن",
         "settings": "تنظیمات خروجی",
+        "format_l": "قالب خروجی",
+        "format_epub": "EPUB",
+        "format_mobi": "MOBI (KF8)",
+        "format_both": "EPUB + MOBI",
+        "format_note": "خروجی MOBI به calibre نیاز دارد و برای ارسال به کیندل توصیه نمی‌شود؛ EPUB را به Send to Kindle بدهید.",
         "title_l": "عنوان",
         "title_ph": "خالی بگذارید تا از خود فایل خوانده شود",
         "author_l": "نویسنده",
@@ -76,7 +81,7 @@ STRINGS = {
         "font_support": "پشتیبانی از {ok} نویسه از {total} نویسهٔ ویژهٔ فارسی.",
         "font_free": "اجازهٔ بازتوزیع دارد.",
         "font_paid": "مجوز بازتوزیع این قلم تأیید نشده؛ پیش از انتشار عمومی بررسی کنید.",
-        "convert": "تبدیل به ایپاب",
+        "convert": "تبدیل",
         "convert_n": "تبدیل {n} فایل",
         "reveal": "نمایش خروجی",
         "ready": "آماده",
@@ -116,6 +121,11 @@ STRINGS = {
         "remove": "Remove",
         "clear": "Clear",
         "settings": "Output settings",
+        "format_l": "Output format",
+        "format_epub": "EPUB",
+        "format_mobi": "MOBI (KF8)",
+        "format_both": "EPUB + MOBI",
+        "format_note": "MOBI requires calibre. For Send to Kindle, use EPUB instead; Amazon no longer accepts MOBI there.",
         "title_l": "Title",
         "title_ph": "Leave empty to read it from the file",
         "author_l": "Author",
@@ -135,7 +145,7 @@ STRINGS = {
         "font_free": "Free to redistribute.",
         "font_paid": "Redistribution license not verified — check the font license "
                      "before publishing.",
-        "convert": "Convert to EPUB",
+        "convert": "Convert",
         "convert_n": "Convert {n} files",
         "reveal": "Show output",
         "ready": "Ready",
@@ -328,6 +338,7 @@ class Converter(QThread):
                     max_pages=self.settings["max_pages"],
                     keep_notes=self.settings["keep_notes"],
                     want_preview=self.settings["preview"],
+                    output_format=self.settings["output_format"],
                     progress=lambda f, m, p=path:
                         self.progress.emit(f, f"{p.name} — {m}"),
                 )
@@ -460,6 +471,24 @@ class MainWindow(QMainWindow):
         self.author_lbl = QLabel()
         col.addLayout(self._field(self.author_lbl, self.author_edit))
 
+        self.format_combo = QComboBox()
+        self.format_combo.addItem("EPUB", "epub")
+        self.format_combo.addItem("MOBI (KF8)", "mobi")
+        self.format_combo.addItem("EPUB + MOBI", "both")
+        saved_format = self.settings.value("output_format", "epub")
+        fmt_index = self.format_combo.findData(saved_format)
+        self.format_combo.setCurrentIndex(max(0, fmt_index))
+        self.format_combo.currentIndexChanged.connect(
+            lambda: self.settings.setValue(
+                "output_format", self.format_combo.currentData()))
+        self.format_lbl = QLabel()
+        col.addLayout(self._field(self.format_lbl, self.format_combo))
+
+        self.format_note = QLabel()
+        self.format_note.setObjectName("hint")
+        self.format_note.setWordWrap(True)
+        col.addWidget(self.format_note)
+
         self.pages = QSpinBox()
         self.pages.setRange(0, 5000)
         self.pages.setValue(0)
@@ -571,6 +600,11 @@ class MainWindow(QMainWindow):
         self.title_edit.setPlaceholderText(self.t("title_ph"))
         self.author_lbl.setText(self.t("author_l"))
         self.author_edit.setPlaceholderText(self.t("author_ph"))
+        self.format_lbl.setText(self.t("format_l"))
+        self.format_combo.setItemText(0, self.t("format_epub"))
+        self.format_combo.setItemText(1, self.t("format_mobi"))
+        self.format_combo.setItemText(2, self.t("format_both"))
+        self.format_note.setText(self.t("format_note"))
         self.pages_lbl.setText(self.t("pages_l"))
         self.pages.setSpecialValueText(self.t("pages_all"))
         self.pages.setToolTip(self.t("pages_all"))
@@ -688,6 +722,7 @@ class MainWindow(QMainWindow):
             "max_pages": self.pages.value() or None,
             "keep_notes": self.notes.isChecked(),
             "preview": self.preview.isChecked(),
+            "output_format": self.format_combo.currentData() or "epub",
         }
         self.last_output = None
         self._done_count = 0
@@ -712,9 +747,10 @@ class MainWindow(QMainWindow):
 
     def _on_item(self, result):
         self._done_count += 1
-        self.last_output = result.epub_path
-        self.reveal_btn.setEnabled(True)
-        line = self.t("result", name=result.epub_path.name,
+        self.last_output = result.primary_path
+        self.reveal_btn.setEnabled(self.last_output is not None)
+        output_name = self.last_output.name if self.last_output else result.source.name
+        line = self.t("result", name=output_name,
                       pages=result.pages_read, blocks=result.blocks,
                       heads=result.headings, font=result.font or "—")
         self.status.setText(line + ("" if not result.warnings
