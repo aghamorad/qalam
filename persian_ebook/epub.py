@@ -114,7 +114,7 @@ def _ncx(chapters, outline, opts, book_id: str) -> str:
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"
      xml:lang="{opts.language}">
   <head>
-    <meta name="dtb:uid" content="{book_id}"/>
+    <meta name="dtb:uid" content="urn:uuid:{book_id}"/>
     <meta name="dtb:depth" content="{depth}"/>
   </head>
   <docTitle><text>{render.esc(opts.title or "کتاب")}</text></docTitle>
