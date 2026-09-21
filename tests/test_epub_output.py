@@ -33,6 +33,9 @@ with zipfile.ZipFile(path) as zf:
     )
 
 assert "آزمون" in xhtml, "Persian fixture text did not survive conversion"
+assert "این یک متن فارسی برای آزمون واقعی استخراج و تبدیل است." in xhtml, (
+    "word spacing/order from the Persian PDF did not survive conversion"
+)
 has_note = "پانوشت کوچک" in xhtml
 if no_notes:
     assert not has_note, "footnote text survived --no-notes"
@@ -47,5 +50,6 @@ print("  pass  invalid legacy cover metadata is absent")
 print("  pass  NCX and OPF publication identifiers match")
 print("  pass  RTL is expressed without forbidden CSS direction")
 print("  pass  Persian text is present in XHTML")
+print("  pass  Persian word spacing/order is preserved")
 print()
 print("all passed")
