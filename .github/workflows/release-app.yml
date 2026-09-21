@@ -44,6 +44,7 @@ jobs:
           python tests/test_normalize.py
           python tests/test_structure.py
           python tests/test_fonts.py
+          python tests/test_semantic_epub.py
 
       - name: Prove PDF to EPUB conversion before packaging
         env:
