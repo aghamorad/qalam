@@ -18,8 +18,13 @@ with zipfile.ZipFile(path) as zf:
     assert infos[0].compress_type == zipfile.ZIP_STORED, "mimetype must be uncompressed"
 
     opf = zf.read("OEBPS/content.opf").decode("utf-8")
+    ncx = zf.read("OEBPS/toc.ncx").decode("utf-8")
+    css = zf.read("OEBPS/style/book.css").decode("utf-8")
     assert 'page-progression-direction="rtl"' in opf
     assert '<meta name="cover"' not in opf
+    book_id = opf.split('<dc:identifier id="bookid">', 1)[1].split("</dc:identifier>", 1)[0]
+    assert f'name="dtb:uid" content="{book_id}"' in ncx
+    assert "direction:" not in css
 
     xhtml = "\n".join(
         zf.read(name).decode("utf-8")
@@ -39,6 +44,8 @@ else:
 print("  pass  EPUB mimetype ordering/compression is correct")
 print("  pass  OPF declares RTL page progression")
 print("  pass  invalid legacy cover metadata is absent")
+print("  pass  NCX and OPF publication identifiers match")
+print("  pass  RTL is expressed without forbidden CSS direction")
 print("  pass  Persian text is present in XHTML")
 print()
 print("all passed")
