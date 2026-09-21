@@ -60,7 +60,8 @@ structure = build_structure(doc)
 
 headings = [b for b in structure.blocks if b.kind.startswith("h")]
 assert [b.kind for b in headings] == ["h1", "h2"], [b.kind for b in headings]
-assert headings[0].bold and headings[1].bold
+assert any(run[1] for run in headings[0].runs())
+assert any(run[1] for run in headings[1].runs())
 print("  pass  heading hierarchy detected as h1 -> h2")
 
 out = Path(tempfile.mkdtemp(prefix="qalam-semantics-")) / "semantic.epub"
