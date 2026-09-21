@@ -210,7 +210,6 @@ def css(opts: RenderOptions, embed_faces: str = "") -> str:
     return f"""@charset "utf-8";
 
 {embed_faces}html, body {{
-  direction: rtl;
   writing-mode: horizontal-tb;
 }}
 
