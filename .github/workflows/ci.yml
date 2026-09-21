@@ -23,6 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller
 
+      - name: Install calibre for real MOBI testing
+        run: brew install --cask calibre
+
       - name: Run normalization and regression tests
         run: |
           python tests/test_normalize.py
@@ -41,9 +44,29 @@ jobs:
 
       - name: Exercise CLI and --no-notes
         run: |
-          python -m persian_ebook.cli tests/qalam-smoke.pdf             --no-notes -o tests/qalam-smoke-no-notes.epub
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --no-notes -o tests/qalam-smoke-no-notes.epub
           python tests/test_epub_output.py tests/converted/qalam-smoke.epub
           python tests/test_epub_output.py tests/qalam-smoke-no-notes.epub --no-notes
+
+      - name: Generate and inspect a real MOBI
+        run: |
+          set -euo pipefail
+          python -m persian_ebook.cli tests/qalam-smoke.pdf \
+            --format mobi -o tests/qalam-smoke.mobi
+          test -s tests/qalam-smoke.mobi
+          ebook-meta tests/qalam-smoke.mobi > /tmp/qalam-mobi-meta.txt
+          cat /tmp/qalam-mobi-meta.txt
+          grep -q "آزمون" /tmp/qalam-mobi-meta.txt
+
+      - name: Exercise combined EPUB + MOBI output
+        run: |
+          set -euo pipefail
+          rm -rf tests/converted
+          python -m persian_ebook.cli tests/qalam-smoke.pdf --format both
+          test -s tests/converted/qalam-smoke.epub
+          test -s tests/converted/qalam-smoke.mobi
+          ebook-meta tests/converted/qalam-smoke.mobi >/dev/null
 
       - name: Validate EPUBs with EPUBCheck 5.4.0
         run: |
