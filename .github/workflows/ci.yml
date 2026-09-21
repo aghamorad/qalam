@@ -32,6 +32,7 @@ jobs:
           python tests/test_structure.py
           python tests/test_fonts.py
           python tests/test_semantic_epub.py
+          python tests/test_spacing.py
 
       - name: Generate a real text-based Persian PDF fixture
         run: python tests/make_fixture_pdf.py tests/qalam-smoke.pdf
