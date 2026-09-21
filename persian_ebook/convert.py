@@ -9,6 +9,7 @@ without dragging the toolkit along.
 """
 
 import re
+import tempfile
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -16,6 +17,7 @@ from pathlib import Path
 from . import epub, render
 from .extract import Document, extract_pdf
 from .fonts import FontChoice, pick
+from .mobi import build_mobi
 from .normalize import NormalizeOptions, normalize
 from .render import RenderOptions
 from .structure import Structure, build
@@ -29,7 +31,8 @@ _SEPARATOR = re.compile(r"\s*[،,]\s*")
 @dataclass
 class ConvertResult:
     source: Path
-    epub_path: Path
+    epub_path: Path | None
+    mobi_path: Path | None = None
     pages_read: int = 0
     pages_total: int = 0
     blocks: int = 0
@@ -43,9 +46,14 @@ class ConvertResult:
     title: str = ""
     author: str = ""
 
+    @property
+    def primary_path(self) -> Path | None:
+        return self.mobi_path or self.epub_path
+
     def report(self) -> str:
+        outputs = ", ".join(p.name for p in (self.epub_path, self.mobi_path) if p)
         lines = [
-            f"{self.source.name} -> {self.epub_path.name}",
+            f"{self.source.name} -> {outputs or 'no output'}",
             f"  pages        {self.pages_read}/{self.pages_total}"
             + (f"  ({self.scanned_pages} with no text layer)"
                if self.scanned_pages else ""),
@@ -124,9 +132,9 @@ def render_options(doc: Document, title: str = "", author: str = "",
 def convert(source: str | Path, out_path: str | Path | None = None,
             title: str = "", author: str = "", font_name: str = "",
             max_pages: int | None = None, keep_notes: bool = True,
-            want_preview: bool = False, progress=None, **render_overrides
-            ) -> ConvertResult:
-    """Convert one PDF to an EPUB.
+            want_preview: bool = False, output_format: str = "epub",
+            progress=None, **render_overrides) -> ConvertResult:
+    """Convert one PDF to EPUB, MOBI, or both.
 
     `progress` is called with (fraction, message) if given, so a caller with a
     window can show something moving without this function knowing about it.
@@ -175,17 +183,49 @@ def convert(source: str | Path, out_path: str | Path | None = None,
     if repairs.get("brackets_repaired"):
         warnings.append(f"{repairs['brackets_repaired']} مورد پرانتز اصلاح شد")
 
-    if out_path is None:
-        out_dir = source.parent / "converted"
-        out_path = out_dir / (source.stem + ".epub")
-    out_path = Path(out_path)
+    output_format = output_format.strip().lower()
+    if output_format not in {"epub", "mobi", "both"}:
+        raise ValueError(f"unknown output format: {output_format}")
 
-    step(0.82, "نوشتن ایپاب…")
-    epub.build(structure, out_path, opts, font=font)
+    out_dir = source.parent / "converted"
+    requested = Path(out_path) if out_path is not None else None
+    epub_path: Path | None = None
+    mobi_path: Path | None = None
+
+    if output_format == "epub":
+        epub_path = requested or (out_dir / (source.stem + ".epub"))
+    elif output_format == "mobi":
+        mobi_path = requested or (out_dir / (source.stem + ".mobi"))
+        if mobi_path.suffix.lower() != ".mobi":
+            mobi_path = mobi_path.with_suffix(".mobi")
+    else:
+        if requested is None:
+            epub_path = out_dir / (source.stem + ".epub")
+            mobi_path = out_dir / (source.stem + ".mobi")
+        elif requested.suffix.lower() == ".mobi":
+            mobi_path = requested
+            epub_path = requested.with_suffix(".epub")
+        else:
+            epub_path = requested if requested.suffix else requested.with_suffix(".epub")
+            mobi_path = epub_path.with_suffix(".mobi")
+
+    temp_dir = None
+    build_epub_path = epub_path
+    if build_epub_path is None:
+        temp_dir = tempfile.TemporaryDirectory(prefix="qalam-mobi-")
+        build_epub_path = Path(temp_dir.name) / (source.stem + ".epub")
+
+    step(0.80, "نوشتن ایپاب…")
+    epub.build(structure, build_epub_path, opts, font=font)
+
+    if mobi_path is not None:
+        step(0.90, "ساختن MOBI با calibre…")
+        build_mobi(build_epub_path, mobi_path)
 
     result = ConvertResult(
         source=source,
-        epub_path=out_path,
+        epub_path=epub_path,
+        mobi_path=mobi_path,
         pages_read=len(doc.pages),
         pages_total=doc.total_pages,
         blocks=len(structure.blocks),
@@ -200,11 +240,15 @@ def convert(source: str | Path, out_path: str | Path | None = None,
 
     if want_preview:
         step(0.94, "ساختن پیش‌نمایش…")
-        preview = out_path.with_suffix(".preview.html")
+        preview_base = epub_path or mobi_path or build_epub_path
+        preview = preview_base.with_suffix(".preview.html")
         preview.write_text(
             render.preview_html(structure, opts, epub._font_files(font)),
             encoding="utf-8")
         result.preview_path = preview
+
+    if temp_dir is not None:
+        temp_dir.cleanup()
 
     result.elapsed = time.monotonic() - started
     step(1.0, "انجام شد")
