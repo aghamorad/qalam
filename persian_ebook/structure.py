@@ -9,11 +9,10 @@ differently and a clever rule that fires on one book will wreck another:
                 reliable here - these legacy Persian fonts set the bold flag on
                 ordinary body text (verified on the Mostazmi article, where the
                 whole body carries it), so bold only breaks ties.
-  centering     a heading is centered; a paragraph is not. Measured against the
-                media box, with a loose tolerance because RTL justification is
-                ragged on the right by design.
-  geometry      vertical gaps and right-edge indentation separate paragraphs.
-                In RTL the paragraph's start edge is its RIGHT edge.
+  markers       conventional section labels and numbered headings catch
+                body-sized headings that typography alone cannot distinguish.
+  geometry      vertical gaps separate paragraphs; geometry is deliberately
+                not asked to infer more than the PDF consistently tells us.
   repetition    a line that recurs at the same height across many pages is a
                 running head or a folio, and belongs in the bin, not the EPUB.
 
@@ -30,9 +29,6 @@ from .extract import Document, Line, Span
 # A line is a heading candidate if it carries a size at least this much larger
 # than the body text.
 HEADING_RATIO = 1.12
-
-# Centered lines up to this many characters can be headings even at body size.
-CENTERED_HEADING_CHARS = 60
 
 # A line this far below the body size, in the lower part of the page, is a note.
 NOTE_SIZE_RATIO = 0.94
@@ -253,9 +249,16 @@ def build(doc: Document, keep_notes: bool = True) -> Structure:
                 stats["dropped_folio"] += 1
                 continue
 
-            is_note = (keep_notes and line.size <= body * NOTE_SIZE_RATIO
+            # Detect notes independently of the keep/drop preference. Previously
+            # keep_notes=False disabled note detection, so note text fell through
+            # and was rendered as an ordinary paragraph instead of being removed.
+            is_note = (line.size <= body * NOTE_SIZE_RATIO
                        and line.bbox[1] >= note_y)
             if is_note:
+                if not keep_notes:
+                    flush()
+                    stats["dropped_notes"] += 1
+                    continue
                 if pending_kind != "note" or pending_meta.get("page") != line.page:
                     open_block("note", line, meta={"page": line.page})
                 pending.append(line)
