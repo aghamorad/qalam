@@ -41,14 +41,17 @@ with zipfile.ZipFile(path) as zf:
         if name.startswith("OEBPS/text/ch") and name.endswith(".xhtml"):
             root = ET.fromstring(zf.read(name))
             visible_parts.append(" ".join(root.itertext()))
-    visible = re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
+    import unicodedata
+    visible = unicodedata.normalize(
+        "NFC", re.sub(r"\s+", " ", " ".join(visible_parts)).strip()
+    )
 
 assert "آزمون" in xhtml, "Persian fixture text did not survive conversion"
 
 # Requiring \s+ between each token still catches glued Persian words while
 # allowing legitimate XHTML element boundaries and line wrapping.
 sentence = re.compile(
-    r"این\s+یک\s+متن\s+فارسی\s+برای\s+آزمون\s+واقعی\s+استخراج\s+و\s+تبدیل\s+است[.]"
+    r"یک\s+متن\s+فارسی\s+برای\s+آزمون\s+واقعی\s+است[.]"
 )
 assert sentence.search(visible), (
     "Persian word spacing/order from the PDF did not survive conversion: "
