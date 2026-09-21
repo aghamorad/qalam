@@ -70,6 +70,7 @@ Everyday options:
 | **Pages** | Convert the whole book, or the first N pages while you check the settings. |
 | **Body font** | Any Persian family installed on this machine, plus the bundled Vazirmatn. |
 | **Keep footnotes** | Preserve detected bottom-of-page notes as note blocks; turn this off to remove them. |
+| **Paragraph spacing** | Preserve obvious paragraph gaps and RTL first-line indentation from the source PDF instead of flattening every paragraph to one generic rhythm. |
 | **Also write an HTML preview** | A single file you can open in a browser and read before committing to the EPUB. |
 
 The command line takes the same options:
@@ -106,6 +107,9 @@ decomposed before codepoints are mapped, and bidi controls have to be gone
 before anything reasons about where a word ends.
 
 **3. Structure.** Lines become blocks: headings, paragraphs, poetry, footnotes.
+For body text, Qalam also uses page geometry to distinguish ordinary line leading
+from a real paragraph gap and to detect RTL first-line indentation from the
+right edge of the text column. Those cues are carried into the reflowable ebook.
 The signals are deliberately few, because every Persian PDF is laid out a little
 differently and a clever rule that reads one book correctly will wreck another.
 Font size is the load-bearing signal: a page's sizes cluster hard, and each
