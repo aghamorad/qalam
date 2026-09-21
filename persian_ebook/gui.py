@@ -104,15 +104,15 @@ STRINGS = {
             "قلم فارسی را داخل خودِ فایل جای می‌دهد و ایپاب ۳ می‌سازد؛ "
             "آی‌پد و کوبو آن را مستقیم باز می‌کنند؛ سرویس «ارسال به کیندل» "
             "ایپاب را برای کیندل تبدیل می‌کند.<br><br>"
-            "تنها قالب خروجی ایپاب است. سرویس «ارسال به کیندل» خودش ایپاب را "
-            "روی سرور تبدیل می‌کند، و کیندل هم MOBI و KFX را نمی‌پذیرد مگر "
-            "جیلبریک شده باشد؛ پس ساختن‌شان فقط یک مرحلهٔ اضافه است.<br><br>"
+            "برای «ارسال به کیندل»، ایپاب خروجی پیشنهادی است. خروجی MOBI "
+            "به‌صورت اختیاری و با calibre برای انتقال مستقیم ساخته می‌شود؛ "
+            "آمازون دیگر MOBI را برای Send to Kindle یا KDP نمی‌پذیرد.<br><br>"
             "<b>ساختهٔ مراد.</b>"
         ),
     },
     "en": {
-        "window": "Qalam — Persian to EPUB",
-        "tagline": "Turn Persian PDFs into right-to-left EPUBs",
+        "window": "Qalam — Persian PDF converter",
+        "tagline": "Turn Persian PDFs into right-to-left EPUB or MOBI",
         "subtitle": "Qalam writes standard EPUB 3 files. iPad and Kobo open them "
                     "directly; Send to Kindle accepts EPUB and converts it for Kindle.",
         "drop": "Drop Persian PDFs here",
@@ -162,16 +162,15 @@ STRINGS = {
         "credit": "Made by Morad",
         "about_body": (
             "<b>Qalam {v}</b><br>"
-            "A Persian PDF → EPUB converter.<br><br>"
+            "A Persian PDF → EPUB / MOBI converter.<br><br>"
             "Persian PDFs are usually typeset left-to-right, in fonts no "
             "e-reader owns. Qalam reads them right-to-left, keeps the "
             "headings and footnotes, embeds a Persian font inside the file, "
             "and writes a standard EPUB 3. iPad and Kobo open it directly; "
             "Send to Kindle accepts EPUB and converts it for Kindle.<br><br>"
-            "EPUB is the only output on purpose. Send to Kindle converts an "
-            "EPUB server-side already, and a Kindle will not take MOBI or KFX "
-            "unless it has been jailbroken — so writing them would only add a "
-            "step.<br><br>"
+            "EPUB is the recommended output for Send to Kindle. Optional MOBI "
+            "output is generated locally through calibre for direct sideloading; "
+            "Amazon no longer accepts MOBI for Send to Kindle or KDP.<br><br>"
             "<b>Made by Morad.</b>"
         ),
     },
@@ -876,7 +875,7 @@ def splash_pixmap(theme: str) -> QPixmap:
     p.setPen(QColor(tok["muted"]))
     p.setFont(QFont(family, 13))
     p.drawText(QRectF(0, 274, w, 22), int(Qt.AlignCenter),
-               "Persian PDF → EPUB")
+               "Persian PDF → EPUB / MOBI")
     p.setFont(QFont(family, 12))
     p.drawText(QRectF(0, 298, w, 20), int(Qt.AlignCenter),
                STRINGS["en"]["credit"] + "  ·  " + STRINGS["fa"]["credit"])
