@@ -18,9 +18,9 @@ import time
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, QSettings, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import (QColor, QFont, QFontDatabase, QIcon, QPainter,
-                           QPalette, QPen, QPixmap)
+from PySide6.QtCore import QRectF, QSettings, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtGui import (QColor, QDesktopServices, QFont, QFontDatabase,
+                           QIcon, QPainter, QPalette, QPen, QPixmap)
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QFileDialog,
     QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMainWindow,
@@ -43,6 +43,7 @@ SPLASH_MIN = 1.6
 
 from .convert import convert
 from .fonts import BUNDLED_DIR, PERSIAN_PROBE, FontChoice, discover
+from .updates import RELEASES, newer_than_mine
 
 PDF_FILTER_KEY = "PDF (*.pdf)"
 
@@ -95,6 +96,12 @@ STRINGS = {
         "bad_file": "فایل پیدا نشد: {path}",
         "about": "درباره",
         "credit": "ساختهٔ مراد",
+        "version_tip": "این نسخه کدام است، و آیا نسخهٔ تازه‌تری منتشر شده.",
+        "version_out": "{v} منتشر شده",
+        "update_line": "نسخهٔ تازه‌تری از قلم منتشر شده — {out}. نسخهٔ شما {mine} است.",
+        "update_current": "نسخهٔ شما {mine} است و تازه‌ترین نسخه است.",
+        "update_unknown": "نسخهٔ شما {mine} است. نسخهٔ تازه بررسی نشده است.",
+        "get": "دریافت {v}",
         "about_body": (
             "<b>قلم {v}</b><br>"
             "تبدیل‌کنندهٔ پی‌دی‌اف فارسی به ایپاب.<br><br>"
@@ -160,6 +167,12 @@ STRINGS = {
         "bad_file": "No such file: {path}",
         "about": "About",
         "credit": "Made by Morad",
+        "version_tip": "Which version this is, and whether a newer one has been cut.",
+        "version_out": "{v} IS OUT",
+        "update_line": "A newer Qalam is out — {out}. You are running {mine}.",
+        "update_current": "You are running {mine}, the latest release.",
+        "update_unknown": "You are running {mine}. Whether a newer one is out has not been checked.",
+        "get": "Get {v}",
         "about_body": (
             "<b>Qalam {v}</b><br>"
             "A Persian PDF → EPUB / MOBI converter.<br><br>"
@@ -184,14 +197,14 @@ THEMES = {
         "text": "#1b1e23", "muted": "#6b7280", "field": "#ffffff",
         "hover": "#eef1f5", "accent": "#2f6feb", "accent_hover": "#2459c4",
         "accent_text": "#ffffff", "ok": "#1a7f4b", "bad": "#c0392b",
-        "chunk": "#2f6feb", "track": "#e6e9ee",
+        "warn": "#a86a00", "chunk": "#2f6feb", "track": "#e6e9ee",
     },
     "dark": {
         "bg": "#16181c", "card": "#22252a", "border": "#343840",
         "text": "#e9ebee", "muted": "#969ba5", "field": "#1b1e22",
         "hover": "#2b2f35", "accent": "#5b8def", "accent_hover": "#729df3",
         "accent_text": "#0f1114", "ok": "#4fbf8b", "bad": "#e5736a",
-        "chunk": "#5b8def", "track": "#2c3037",
+        "warn": "#e0a944", "chunk": "#5b8def", "track": "#2c3037",
     },
 }
 
@@ -202,6 +215,14 @@ QLabel#tagline {{ font-size: 19px; font-weight: 600; }}
 QLabel#subtitle, QLabel#muted, QLabel#hint {{ color: {muted}; }}
 QLabel#hint {{ font-size: 13px; }}
 QLabel#status {{ color: {muted}; }}
+/* The version stamp: the only place the window ever mentions its own age. It
+   reads plain until the release check comes back and says a newer one is out. */
+QLabel#version {{
+    color: {muted}; font-size: 12px; padding: 2px 0;
+}}
+QLabel#version:hover {{ color: {accent}; }}
+QLabel#version[out="true"] {{ color: {warn}; font-weight: 600; }}
+QLabel#version[out="true"]:hover {{ color: {warn}; }}
 QFrame#card {{
     background: {card}; border: 1px solid {border}; border-radius: 12px;
 }}
@@ -312,6 +333,46 @@ class DropZone(QFrame):
         self.list.dropEvent(event)
 
 
+class LinkLabel(QLabel):
+    """A label that opens a page when clicked, and looks like it would."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor)
+        # A plain QLabel does not track the mouse, and a :hover rule on a
+        # widget that does not is a rule Qt never gets to apply.
+        self.setAttribute(Qt.WA_Hover, True)
+
+    def mouseReleaseEvent(self, event):
+        inside = self.rect().contains(event.position().toPoint())
+        if event.button() == Qt.LeftButton and inside:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+
+class ReleaseCheck(QThread):
+    """Asks GitHub whether a newer Qalam exists, off the UI thread.
+
+    Emits the newer version number, or "" when there is none or the question
+    could not be answered. Either way the window is already usable; the stamp
+    this feeds is a footnote, not a gate.
+    """
+
+    answer = Signal(str)
+
+    # Shorter than the library default, and deliberately so: closeEvent waits
+    # for this thread, so this number is the worst case a quit can be held up
+    # by a GitHub that is reachable enough to accept a connection and not
+    # reachable enough to answer. On a good link the answer lands in well under
+    # a second and nobody ever sees the wait.
+    timeout = 5
+
+    def run(self):
+        self.answer.emit(newer_than_mine(self.timeout))
+
+
 class Converter(QThread):
     """Runs the pipeline off the UI thread, one file at a time, in order."""
 
@@ -363,6 +424,15 @@ class MainWindow(QMainWindow):
         if self.lang not in STRINGS:
             self.lang = "en"
         self.thread: Converter | None = None
+        self.check: ReleaseCheck | None = None
+        # The newer release number, when the check found one. Empty means
+        # either "you are current" or "no answer" - see `checked`.
+        self.outdated = ""
+        # Whether the check ever came back. Distinct from `outdated`: a blank
+        # `outdated` after an answer means this is the newest release, and a
+        # blank one before it means nobody knows yet. Only the About dialog
+        # cares, and only so it does not claim a currency it never confirmed.
+        self.checked = False
         self.choices: list[FontChoice] = []
         self.last_output: Path | None = None
         self._done_count = 0
@@ -565,6 +635,10 @@ class MainWindow(QMainWindow):
         row.addWidget(self.reveal_btn)
         row.addStretch(1)
         row.addWidget(self.about_btn)
+        self.version = LinkLabel()
+        self.version.setObjectName("version")
+        self.version.clicked.connect(self.open_releases)
+        row.addWidget(self.version)
         col.addLayout(row)
 
         self.status = QLabel()
@@ -614,6 +688,8 @@ class MainWindow(QMainWindow):
         self.go.setText(self.t("convert"))
         self.reveal_btn.setText(self.t("reveal"))
         self.about_btn.setText(self.t("about"))
+        self.version.setToolTip(self.t("version_tip"))
+        self._paint_version()
         if not self.status.text() or self._is_default_status():
             self.status.setText(self.t("ready"))
         self._font_changed()
@@ -621,6 +697,40 @@ class MainWindow(QMainWindow):
 
     def _is_default_status(self) -> bool:
         return any(self.status.text() == STRINGS[l]["ready"] for l in STRINGS)
+
+    # --- is this copy out of date? ---------------------------------------
+
+    def check_for_updates(self):
+        """Ask GitHub once, in the background, after the window is up.
+
+        Called from main() rather than from __init__, so a test that builds a
+        window never touches the network, and so the question is asked while
+        the user is already looking at a working app.
+        """
+        if self.check is not None:
+            return
+        self.check = ReleaseCheck(self)
+        self.check.answer.connect(self._on_release_answer)
+        self.check.start()
+
+    def _on_release_answer(self, newer: str):
+        self.outdated = newer
+        self.checked = True
+        self._paint_version()
+
+    def _paint_version(self):
+        if self.outdated:
+            self.version.setText(self.t("version_out", v="v" + self.outdated))
+        else:
+            self.version.setText("v" + __version__)
+        self.version.setProperty("out", "true" if self.outdated else "false")
+        # Qt only re-reads a stylesheet when it is told the property changed,
+        # and a property selector matches nothing until it does.
+        self.version.style().unpolish(self.version)
+        self.version.style().polish(self.version)
+
+    def open_releases(self):
+        QDesktopServices.openUrl(QUrl(RELEASES))
 
     def apply_theme(self):
         dark = self.palette().color(QPalette.Window).lightness() < 128
@@ -755,14 +865,44 @@ class MainWindow(QMainWindow):
         self.status.setText(line + ("" if not result.warnings
                                     else "  ·  " + "; ".join(result.warnings)))
 
+    def _version_note(self) -> str:
+        """What the About dialog says about this copy's age.
+
+        Three genuinely different states, and the wording has to keep them
+        apart: a newer release exists, this is the newest one, or nobody has
+        asked yet. The last is not the middle one - a dialog that said "the
+        latest release" on a window that never checked would be inventing
+        something it does not know.
+        """
+        mine = "v" + __version__
+        if self.outdated:
+            return self.t("update_line", out="v" + self.outdated, mine=mine)
+        if self.checked:
+            return self.t("update_current", mine=mine)
+        return self.t("update_unknown", mine=mine)
+
     def show_about(self):
+        note = self._version_note()
+
         box = QMessageBox(self)
         box.setWindowTitle(self.t("about"))
         box.setTextFormat(Qt.RichText)
         box.setText(self.t("about_body", v=__version__))
+        box.setInformativeText(note)
         box.setIconPixmap(icon_pixmap(96))
-        box.setStandardButtons(QMessageBox.Close)
+        box.addButton(QMessageBox.Close)
+        # The only thing this dialog can do besides close is take you to the
+        # download, and it only offers that when there is something to download.
+        get = None
+        if self.outdated:
+            get = box.addButton(self.t("get", v="v" + self.outdated),
+                                QMessageBox.ActionRole)
         box.exec()
+        # Escape and the window control both leave clickedButton() as the Close
+        # button, so this asks for the Get button by name rather than the absence
+        # of Close.
+        if get is not None and box.clickedButton() is get:
+            self.open_releases()
 
     def _on_fail(self, name, message):
         self._done_count += 1
@@ -805,6 +945,12 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
             self.thread.wait(2000)
+        # A QThread destroyed while it is still running aborts the process, so a
+        # quit landing during the release check has to outlast it. It is a
+        # child of this window and a second of slack past its own timeout is
+        # more than the question can possibly take.
+        if self.check is not None and self.check.isRunning():
+            self.check.wait((ReleaseCheck.timeout + 1) * 1000)
         event.accept()
 
 
@@ -926,6 +1072,7 @@ def main(argv=None) -> int:
     win.show()
     win.raise_()
     win.activateWindow()
+    win.check_for_updates()
 
     dwell = max(0, int((SPLASH_MIN - (time.monotonic() - started)) * 1000))
     QTimer.singleShot(dwell, lambda: splash.finish(win))

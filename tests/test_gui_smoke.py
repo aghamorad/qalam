@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PySide6.QtCore import QSettings, QTimer                   # noqa: E402
 from PySide6.QtWidgets import QApplication                     # noqa: E402
 
+from persian_ebook import __version__                           # noqa: E402
 from persian_ebook.gui import MainWindow                       # noqa: E402
 
 # The window persists language and font through QSettings, and a test that
@@ -46,6 +47,40 @@ print("  pass  english interface and output format choices")
 win.set_language("fa")
 assert win.lang_fa.isChecked()
 print("  pass  persian interface")
+
+# The version stamp, in both of its states. The window never asks GitHub in a
+# test - that only happens from main() - so the answer is fed in directly.
+assert win.version.text() == f"v{__version__}", win.version.text()
+assert win.version.property("out") == "false"
+assert win.checked is False, "window claimed to have checked without asking"
+assert win.check is None, "a window built in a test started a network check"
+print(f"  pass  version stamp reads {win.version.text()}")
+
+win.outdated = "9.9.9"
+win._paint_version()
+assert win.version.property("out") == "true", "stamp did not turn"
+assert "9.9.9" in win.version.text(), win.version.text()
+win.set_language("en")
+assert win.version.text() == "v9.9.9 IS OUT", win.version.text()
+print(f"  pass  stale stamp reads {win.version.text()}")
+win.outdated = ""
+win._paint_version()
+assert win.version.property("out") == "false"
+win.set_language("fa")
+print("  pass  stamp returns to plain")
+
+# "no answer" and "you are current" are different answers, and only the second
+# may claim to be the latest release.
+win.set_language("en")
+win.outdated, win.checked = "", False
+assert "not been checked" in win._version_note(), win._version_note()
+win.checked = True
+assert "the latest release" in win._version_note(), win._version_note()
+win.outdated = "9.9.9"
+assert "A newer Qalam is out" in win._version_note(), win._version_note()
+win.outdated, win.checked = "", False
+win.set_language("fa")
+print("  pass  about dialog tells the three version states apart")
 
 if sample:
     assert sample.exists(), f"no such file: {sample}"
