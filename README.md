@@ -2,7 +2,7 @@
   <img src="docs/splash.png" width="420" alt="Qalam">
 </p>
 
-# Qalam — قلم
+# Qalam: Persian PDF to right-to-left EPUB — قلم
 
 A Persian PDF to EPUB/MOBI converter. Drop in a text-based PDF and get a
 right-to-left EPUB, a KF8-based MOBI, or both. EPUB remains the recommended
